@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Memory Game</title>
     <link href="style.css" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
 </head>
 <body>
 <div class="center-aligned__block">
@@ -30,55 +31,251 @@
                 <input type="radio" name="card" value="Emoji"> Emoji
             </label>
         </div>
-        <ul class="board">
-        </ul>
+        <div class="game-info">
+            <div id="timer">Time: 0s</div>
+            <div id="found-count">Found: 0</div>
+            <div id="remaining-count">Remaining: 0</div>
+        </div>
+        <ul class="board"></ul>
     </div>
     <button id="start-game">Start Game</button>
+    <div id="game-over-message" class="game-over hidden">
+        <h2>Congratulations! 🎉</h2>
+        <p id="final-time">You completed the game in <span id="total-time">0</span> seconds!</p>
+    </div>
 </div>
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         const startButton = document.getElementById("start-game")
         const board = document.querySelector(".board")
+        const timerElement = document.getElementById("timer")
+        const foundCountElement = document.getElementById("found-count")
+        const remainingCountElement = document.getElementById("remaining-count")
+        const gameContainer = document.querySelector(".game-container")
+        const gameOverMessage = document.getElementById("game-over-message")
+        const totalTimeElement = document.getElementById("total-time")
+
+        let firstCard = null
+        let secondCard = null
+        let isBoardLocked = false
+        let isTimerRunning = false
+
+        let timer
+        let timeElapsed = 0
+        let foundPairs = 0
+        let totalPairs = 0
+
         startButton.addEventListener("click", () => {
             if (startButton.innerText === "Reset") {
                 resetBoard()
                 toggleShowSettingsBlock(false)
+                stopTimer()
+                hideGameOverMessage()
             } else {
+                resetBoard()
                 startGame()
                 toggleShowSettingsBlock(true)
+                startTimer()
             }
         })
 
+        gameContainer.addEventListener("mouseover", () => {
+            if (startButton.innerText === "Reset") resumeTimer()
+        })
+
+        gameContainer.addEventListener("mouseout", () => {
+            if (startButton.innerText === "Reset") pauseTimer()
+        })
+
         function startGame() {
-            resetBoard()
             startButton.innerText = "Reset"
-            let cardList;
-            cardList = fillBoardCards()
-            cardList.forEach(el => {
+            const cardList = fillBoardCards()
+
+            totalPairs = cardList.length / 2
+            updateCount()
+
+            cardList.forEach((el) => {
                 const element = document.createElement("li")
                 element.classList.add("card")
-                element.innerText = el;
+                element.dataset.value = el
+                element.addEventListener("click", handleCardClick)
                 board.appendChild(element)
+
+                anime({
+                    targets: element,
+                    scale: [0, 1],
+                    duration: 500,
+                    easing: 'easeOutElastic(1, .8)',
+                })
             })
         }
 
+        function handleCardClick(event) {
+            if (isBoardLocked) return
+            const clickedCard = event.target
+
+            if (clickedCard === firstCard || clickedCard.classList.contains("flipped")) return
+
+            flipCard(clickedCard)
+
+            if (!firstCard) {
+                firstCard = clickedCard
+                return
+            }
+
+            secondCard = clickedCard
+            isBoardLocked = true
+            checkForMatch()
+        }
+
+        function checkForMatch() {
+            const isMatch = firstCard.dataset.value === secondCard.dataset.value
+            isMatch ? disableCards() : unflipCards()
+        }
+
+        function disableCards() {
+            firstCard.removeEventListener("click", handleCardClick)
+            secondCard.removeEventListener("click", handleCardClick)
+
+            foundPairs++
+            updateCount()
+
+            anime({
+                targets: [firstCard, secondCard],
+                scale: 1.2,
+                duration: 500,
+                easing: 'easeInOutQuad',
+                complete: () => {
+                    anime({
+                        targets: [firstCard, secondCard],
+                        scale: 1,
+                        duration: 300,
+                        easing: 'easeOutQuad',
+                        complete: () => {
+                            resetBoardState()
+                            checkWinCondition()
+                        },
+                    })
+                },
+            })
+        }
+
+        function unflipCards() {
+            setTimeout(() => {
+                anime({
+                    targets: [firstCard, secondCard],
+                    rotateY: '0deg',
+                    duration: 500,
+                    easing: 'easeInOutQuad',
+                    complete: () => {
+                        firstCard.classList.remove("flipped")
+                        secondCard.classList.remove("flipped")
+                        firstCard.innerText = ""
+                        secondCard.innerText = ""
+                        resetBoardState()
+                    }
+                })
+            }, 1000)
+        }
+
+        function flipCard(card) {
+            card.classList.add("flipped")
+
+            anime({
+                targets: card,
+                rotateY: '180deg',
+                duration: 500,
+                easing: 'easeInOutQuad',
+                complete: () => {
+                    card.innerText = card.dataset.value
+                }
+            })
+        }
+
+        function resetBoardState() {
+            [firstCard, secondCard] = [null, null]
+            isBoardLocked = false
+        }
+
+        function resetBoard() {
+            board.className = "board"
+            board.innerHTML = ""
+            startButton.innerText = "Start Game"
+            foundPairs = 0
+            updateCount()
+            resetBoardState()
+        }
+
+        function startTimer() {
+            timeElapsed = 0
+            isTimerRunning = true
+            timer = setInterval(() => {
+                if (isTimerRunning) {
+                    timeElapsed++
+                    timerElement.innerText = `Time: ${timeElapsed}s`
+                }
+            }, 1000)
+        }
+
+        function stopTimer() {
+            clearInterval(timer)
+            isTimerRunning = false
+        }
+
+        function pauseTimer() {
+            isTimerRunning = false
+        }
+
+        function resumeTimer() {
+            isTimerRunning = true
+        }
+
+        function updateCount() {
+            foundCountElement.innerText = `Found: ${foundPairs}`
+            remainingCountElement.innerText = `Remaining: ${totalPairs - foundPairs}`
+        }
+
+        function checkWinCondition() {
+            if (foundPairs === totalPairs) {
+                stopTimer()
+                showGameOverMessage()
+            }
+        }
+
+        function showGameOverMessage() {
+            totalTimeElement.innerText = timeElapsed
+            gameOverMessage.classList.remove("hidden")
+
+            anime({
+                targets: gameOverMessage,
+                opacity: [0, 1],
+                scale: [0.8, 1],
+                duration: 500,
+                easing: 'easeOutExpo',
+            })
+        }
+
+        function hideGameOverMessage() {
+            gameOverMessage.classList.add("hidden")
+        }
+
         function fillBoardCards() {
-            const selectedGameSize = document.querySelector("input[name=grid-size]:checked").value;
-            board.classList.add(`grid-${selectedGameSize}x${selectedGameSize}`);
+            const selectedGameSize = document.querySelector("input[name=grid-size]:checked").value
+            board.classList.add(`grid-${selectedGameSize}x${selectedGameSize}`)
 
-            const totalItems = Math.floor(selectedGameSize * selectedGameSize);
-            const halfItems = totalItems / 2;
-            const cardList = new Array(totalItems);
+            const totalItems = Math.floor(selectedGameSize * selectedGameSize)
+            const halfItems = totalItems / 2
+            const cardList = new Array(totalItems)
 
-            const selectedCardType = document.querySelector("input[name=card]:checked").value;
+            const selectedCardType = document.querySelector("input[name=card]:checked").value
 
             const generatePairs = (items) => {
                 for (let i = 0; i < halfItems; i++) {
-                    const item = items[i % items.length];
-                    cardList[i] = item;
-                    cardList[halfItems + i] = item;
+                    const item = items[i % items.length]
+                    cardList[i] = item
+                    cardList[halfItems + i] = item
                 }
-            };
+            }
 
             switch (selectedCardType) {
                 case "Emoji":
@@ -90,23 +287,17 @@
                     break;
             }
 
-            return shuffleArray(cardList);
-        }
-
-        function resetBoard() {
-            board.className = "board"
-            board.innerHTML = ""
-            startButton.innerText = "Start Game"
+            return shuffleArray(cardList)
         }
 
         function toggleShowSettingsBlock(shouldHide) {
-            const elements = [document.querySelector(".size-options"), document.querySelector(".card-options")];
+            const elements = [document.querySelector(".size-options"), document.querySelector(".card-options")]
 
             elements.forEach((element) => {
                 if (element) {
-                    element.classList.toggle("hidden", shouldHide);
+                    element.classList.toggle("hidden", shouldHide)
                 }
-            });
+            })
         }
 
         function shuffleArray(array) {
