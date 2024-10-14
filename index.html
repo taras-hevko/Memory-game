@@ -101,11 +101,31 @@
                 element.addEventListener("click", handleCardClick)
                 board.appendChild(element)
 
+                const cards = document.querySelectorAll(".card")
+
+                cards.forEach((card) => {
+                    card.innerText = card.dataset.value;
+                })
                 anime({
                     targets: element,
                     scale: [0, 1],
-                    duration: 500,
+                    duration: 2000,
                     easing: 'easeOutElastic(1, .8)',
+                    complete: () => {
+                        setTimeout(() => {
+                            anime({
+                                targets: cards,
+                                rotateY: '0deg',
+                                duration: 1000,
+                                easing: 'easeInOutQuad',
+                                complete: () => {
+                                    cards.forEach((card) => {
+                                        card.innerText = ""
+                                    });
+                                }
+                            })
+                        }, 1500)
+                    }
                 })
             })
         }
@@ -164,7 +184,7 @@
             setTimeout(() => {
                 anime({
                     targets: [firstCard, secondCard],
-                    rotateY: '0deg',
+                    rotateX: '0deg',
                     duration: 500,
                     easing: 'easeInOutQuad',
                     complete: () => {
@@ -183,7 +203,7 @@
 
             anime({
                 targets: card,
-                rotateY: '180deg',
+                rotateX: '360deg',
                 duration: 500,
                 easing: 'easeInOutQuad',
                 complete: () => {
